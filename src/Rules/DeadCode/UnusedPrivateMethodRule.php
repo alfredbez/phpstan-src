@@ -18,6 +18,8 @@ use PHPStan\Type\Constant\ConstantStringType;
 use PHPStan\Type\ObjectType;
 use function array_map;
 use function count;
+use function in_array;
+use function ltrim;
 use function sprintf;
 use function strtolower;
 
@@ -154,6 +156,9 @@ final class UnusedPrivateMethodRule implements Rule
 			foreach ($arrayCalls as $arrayCall) {
 				/** @var Node\Expr\Array_ $array */
 				$array = $arrayCall->getNode();
+				if (!$this->callableArrayMayTargetThisClass($array, $classReflection)) {
+					continue;
+				}
 				$arrayScope = $arrayCall->getScope();
 				$arrayType = $arrayScope->getType($array);
 				if (!$arrayType->isCallable()->yes()) {
@@ -206,6 +211,96 @@ final class UnusedPrivateMethodRule implements Rule
 		}
 
 		return $errors;
+	}
+
+	/**
+	 * A private method is only reachable through a callable array whose class slot
+	 * is $this, self, static, or the declaring class. Other plain pairs stay on
+	 * ClassMethodsNode::getMethodCalls() (@api); skipping them here avoids
+	 * Type::isCallable(), which reflects the unrelated class.
+	 */
+	private function callableArrayMayTargetThisClass(Node\Expr\Array_ $array, ClassReflection $classReflection): bool
+	{
+		$classExpr = $this->plainPairClassExpr($array);
+		if ($classExpr === null) {
+			return true;
+		}
+
+		return $this->exprMayReferToThisClass($classExpr, $classReflection);
+	}
+
+	private function plainPairClassExpr(Node\Expr\Array_ $array): ?Node\Expr
+	{
+		if (count($array->items) !== 2) {
+			return null;
+		}
+
+		$first = $array->items[0];
+		$second = $array->items[1];
+		if ($first->key !== null || $second->key !== null || $first->unpack || $second->unpack) {
+			return null;
+		}
+
+		return $first->value;
+	}
+
+	private function exprMayReferToThisClass(Node\Expr $expr, ClassReflection $classReflection): bool
+	{
+		if ($expr instanceof Node\Expr\Variable && $expr->name === 'this') {
+			return true;
+		}
+
+		if ($expr instanceof Node\Scalar\String_) {
+			return $this->isThisClassName($expr->value, $classReflection);
+		}
+
+		if (
+			$expr instanceof Node\Expr\ClassConstFetch
+			&& $expr->name instanceof Identifier
+			&& $expr->name->toLowerString() === 'class'
+		) {
+			if ($expr->class instanceof Node\Name) {
+				return $this->nameMayBeThisClass($expr->class, $classReflection);
+			}
+
+			return true;
+		}
+
+		if ($expr instanceof Node\Expr\New_) {
+			if ($expr->class instanceof Node\Name) {
+				return $this->nameMayBeThisClass($expr->class, $classReflection);
+			}
+
+			return true;
+		}
+
+		if ($expr instanceof Node\Scalar\Int_ || $expr instanceof Node\Scalar\Float_ || $expr instanceof Node\Expr\Array_) {
+			return false;
+		}
+
+		if ($expr instanceof Node\Expr\ConstFetch) {
+			return !in_array(strtolower($expr->name->toString()), ['null', 'true', 'false'], true);
+		}
+
+		return true;
+	}
+
+	private function nameMayBeThisClass(Node\Name $name, ClassReflection $classReflection): bool
+	{
+		$lowerName = $name->toLowerString();
+		if (in_array($lowerName, ['self', 'static'], true)) {
+			return true;
+		}
+		if ($lowerName === 'parent') {
+			return false;
+		}
+
+		return $lowerName === strtolower($classReflection->getName());
+	}
+
+	private function isThisClassName(string $name, ClassReflection $classReflection): bool
+	{
+		return strtolower(ltrim($name, '\\')) === strtolower($classReflection->getName());
 	}
 
 	/**

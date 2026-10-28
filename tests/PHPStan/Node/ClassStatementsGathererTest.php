@@ -57,6 +57,8 @@ class ClassStatementsGathererTest extends RuleTestCase
 
 	public function testGatherCallableArrays(): void
 	{
+		// ClassMethodsNode::getMethodCalls() is @api: every 2-element array is gathered,
+		// including data arrays that cannot call a private method of this class.
 		$this->analyse([__DIR__ . '/data/class-statements-gatherer-callable-array.php'], [
 			[
 				'Gathered callable array on line 10.',
@@ -73,6 +75,26 @@ class ClassStatementsGathererTest extends RuleTestCase
 			[
 				'Gathered callable array on line 13.',
 				13,
+			],
+			[
+				'Gathered callable array on line 15.',
+				15,
+			],
+			[
+				'Gathered callable array on line 16.',
+				16,
+			],
+			[
+				'Gathered callable array on line 17.',
+				17,
+			],
+			[
+				'Gathered callable array on line 18.',
+				18,
+			],
+			[
+				'Gathered callable array on line 19.',
+				19,
 			],
 		]);
 	}

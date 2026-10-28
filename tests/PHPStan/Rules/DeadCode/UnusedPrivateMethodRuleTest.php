@@ -154,7 +154,17 @@ class UnusedPrivateMethodRuleTest extends RuleTestCase
 		$this->analyse([__DIR__ . '/data/unused-private-method-callable-arrays.php'], [
 			[
 				'Static method UnusedPrivateMethodCallableArrays\Foo::statusKey() is unused.',
-				29,
+				41,
+			],
+		]);
+	}
+
+	public function testBug15494(): void
+	{
+		$this->analyse([__DIR__ . '/data/bug-15494.php'], [
+			[
+				'Method Bug15494\Service::unusedMethod() is unused.',
+				12,
 			],
 		]);
 	}
