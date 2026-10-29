@@ -16,6 +16,15 @@ class ErrorTest extends PHPStanTestCase
 		$this->assertSame(10, $error->getLine());
 	}
 
+	public function testChangeFilePathWithTraitFilePath(): void
+	{
+		$error = new Error('Message', 'trait.php (in context of class C)', 11, true, 'tmp/user.php', 'trait.php');
+		$changed = $error->changeFilePath('src/user.php');
+		$this->assertSame('trait.php (in context of class C)', $changed->getFile());
+		$this->assertSame('src/user.php', $changed->getFilePath());
+		$this->assertSame('trait.php', $changed->getTraitFilePath());
+	}
+
 	public function testRemoveTraitContextKeepsTraitFilePath(): void
 	{
 		$error = new Error('Message', 'trait.php (in context of class C)', 11, true, 'user.php', 'trait.php');
